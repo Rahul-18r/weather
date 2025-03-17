@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weather Checker</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            font-family: 'Poppins', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            background: linear-gradient(to bottom, #888484, #b3bfd5);
+            color: white;
+            overflow: hidden;
+            transition: background 0.5s ease;
+        }
+        #search-container {
+            background: rgba(0, 0, 0, 0.7);
+            padding: 40px;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(255, 255, 255, 0.3);
+            position: absolute;
+            top: 15%;
+            width: 350px;
+            text-align: center;
+            display:inline-block;
+        }
+        input {
+            padding: 15px;
+            font-size: 20px;
+            border-radius: 8px;
+            border: none;
+            margin-bottom: 20px;
+            width: 100%;
+            text-align: center;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            outline: none;
+        }
+        button {
+            padding: 15px;
+            background-color: #ffcc00;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            width: 100%;
+            font-size: 18px;
+            font-weight: bold;
+        }
+        #weather-info {
+            margin-top: 30px;
+            text-align: center;
+            font-size: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(255, 255, 255, 0.3);
+            display: none;
+            position: absolute;
+            top: 40%;
+            width: 350px;
+        }
+        canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            z-index: -1;
+        }
+    </style>
+</head>
+<body>
+    <div id="search-container">
+        <input type="text" id="location" placeholder="Enter place name" oninput="hideWeatherInfo()">
+        <button onclick="fetchWeather()">Check Weather</button>
+    </div>
+    <div id="weather-info"></div>
+    <script>
+        let scene, camera, renderer, particles = [];
+
+        function initThreeJS(effect) {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            renderer = new THREE.WebGLRenderer();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+
+            particles = [];
+            let particleColor = effect === 'snow' ? 0xffffff : 0xffcc00;
+            if (effect === 'stars') particleColor = 0xaaaaaa;
+            
+            for (let i = 0; i < 800; i++) {
+                let geometry = new THREE.SphereGeometry(0.1, 24, 24);
+                let material = new THREE.MeshBasicMaterial({ color: particleColor });
+                let particle = new THREE.Mesh(geometry, material);
+                particle.position.set(
+                    (Math.random() - 0.5) * 400,
+                    (Math.random() - 0.5) * 400,
+                    (Math.random() - 0.5) * 400
+                );
+                scene.add(particle);
+                particles.push(particle);
+            }
+            camera.position.z = 5;
+            animate();
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            particles.forEach(particle => {
+                particle.position.y -= 0.1;
+                if (particle.position.y < -200) particle.position.y = 200;
+            });
+            renderer.render(scene, camera);
+        }
+
+        function hideWeatherInfo() {
+            document.getElementById('weather-info').style.display = 'none';
+        }
+
+        async function fetchWeather() {
+            const location = document.getElementById('location').value;
+            if (!location) return alert('Please enter a location');
+            
+            try {
+                const geoResponse = await fetch(`https://api.openweathermap.org/geo/1.0/direct?q=${location}&limit=1&appid=ddc90a12f9bc190f49b92f613085490b`);
+                const geoData = await geoResponse.json();
+                if (!geoData.length) return alert('Location not found');
+
+                const { lat, lon, country } = geoData[0];
+                const weatherResponse = await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=ddc90a12f9bc190f49b92f613085490b&units=metric`);
+                const weatherData = await weatherResponse.json();
+                const temp = weatherData.main.temp;
+                const isNight = new Date().getHours() >= 18 || new Date().getHours() < 6;
+
+                let effect = temp < 10 ? 'snow' : 'sunlight';
+                if (isNight) effect = 'stars';
+                
+                document.body.style.background = isNight ? 'black' : (temp < 10 ? '#001f3f' : '#ffcc00');
+                scene && document.body.removeChild(renderer.domElement);
+                initThreeJS(effect);
+
+                document.getElementById('weather-info').innerHTML = `
+                    <p>Country: ${country}</p>
+                    <p>Min Temp: ${weatherData.main.temp_min} °C</p>
+                    <p>Max Temp: ${weatherData.main.temp_max} °C</p>
+                    <p>Weather: ${weatherData.weather[0].description}</p>
+                `;
+                document.getElementById('weather-info').style.display = 'block';
+            } catch (error) {
+                console.error('Error fetching weather data:', error);
+                alert('Failed to retrieve weather data');
+            }
+        }
+    </script>
+</body>
+</html>
